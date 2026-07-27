@@ -3,6 +3,7 @@ syntax = "proto3";
 import "packet.proto";
 import "shared.proto";
 import "bundle.proto";
+import "google/protobuf/timestamp.proto";
 
 package block_engine;
 
@@ -127,6 +128,31 @@ service BlockEngineValidator {
 
   // Flowra: the validator (PBP policy authority) pushes its Permissionless Bundle Policy to the engine.
   rpc ProvidePbpPolicy (PbpPolicy) returns (ProvidePbpPolicyResponse) {}
+
+  // Flowra: the validator hands the engine a short-lived access token for an UPSTREAM block
+  // engine that the validator authenticated to itself.
+  //
+  // Upstream engines scope order flow to the leader slots of the identity that
+  // authenticated, so the token must be minted by this validator's own identity key.
+  // Pushing the token rather than the key keeps the key inside the validator while still
+  // letting the engine hold the upstream stream and merge its flow with its own.
+  rpc ProvideUpstreamToken (UpstreamToken) returns (ProvideUpstreamTokenResponse) {}
+}
+
+message UpstreamToken {
+  /// Upstream block engine the token is valid for.
+  string upstream_url = 1;
+
+  /// Access token obtained from the upstream's AuthService by this validator's identity key.
+  string access_token = 2;
+
+  /// When the token stops being accepted by the upstream.
+  google.protobuf.Timestamp expires_at_utc = 3;
+}
+
+message ProvideUpstreamTokenResponse {
+  /// Seconds before expiry at which the validator should push a fresh token.
+  uint64 refresh_margin_secs = 1;
 }
 
 /// Relayers can forward packets to Block Engines.
