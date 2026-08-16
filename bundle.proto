@@ -15,19 +15,21 @@ message BundleUuid {
   string uuid = 2;
 }
 
-/* Bundle Result Types */
+// ── Bundle result stream ────────────────────────────────────────────────────
+//
+// Message names, field numbers and the oneof layout mirror Jito's bundle.proto so an
+// existing jito-ts / jito-rust-client searcher receives these by changing only the
+// endpoint. Fields Flowra adds are appended at unused numbers; a Jito-generated client
+// simply skips them (proto3 unknown-field semantics), so compatibility is one-way safe.
 
-// Indicates the bundle was accepted and forwarded to a validator.
-// NOTE: A single bundle may have multiple events emitted if forwarded to many validators.
+// Bundle passed simulation and was accepted into the auction.
 message Accepted {
-  // Slot at which bundle was forwarded.
+  // Slot the bundle was forwarded at.
   uint64 slot = 1;
-
-  // Validator identity bundle was forwarded to.
+  // Validator identity the bundle was forwarded to.
   string validator_identity = 2;
 }
 
-// Indicates the bundle was dropped and therefore not forwarded to any validator.
 message Rejected {
   oneof reason {
     StateAuctionBidRejected state_auction_bid_rejected = 1;
@@ -38,74 +40,107 @@ message Rejected {
   }
 }
 
-// Indicates the bundle's bid was high enough to win its state auction.
-// However, not high enough relative to other state auction winners and therefore excluded from being forwarded.
+// The bid won its state auction but not relative to other winners, so it was excluded.
 message WinningBatchBidRejected {
-  // Auction's unique identifier.
   string auction_id = 1;
-  // Bundle's simulated bid.
   uint64 simulated_bid_lamports = 2;
   optional string msg = 3;
 }
 
-// Indicates the bundle's bid was __not__ high enough to be included in its state auction's set of winners.
+// The bid was not high enough to win its state auction.
 message StateAuctionBidRejected {
-  // Auction's unique identifier.
   string auction_id = 1;
-  // Bundle's simulated bid.
   uint64 simulated_bid_lamports = 2;
   optional string msg = 3;
 }
 
-// Bundle dropped due to simulation failure.
+// Pre-auction simulation said the bundle would revert.
+//
+// Jito's version stops at (tx_signature, msg), which tells a searcher *that* it failed but
+// not *why* — the program's own error and log output are the only things that distinguish a
+// wrong pricing formula from a stale account. Flowra attaches the full simulation report at
+// fields 3-5 so the failure is diagnosable without re-running the trade.
 message SimulationFailure {
   // Signature of the offending transaction.
   string tx_signature = 1;
   optional string msg = 2;
+
+  // FLOWRA EXTENSION —
+  // Index of the failing transaction within the bundle (-1 if the bundle failed as a whole).
+  int32 failed_tx_index = 3;
+  // Per-transaction simulation detail, in bundle order, up to and including the failure.
+  repeated SimulatedTransaction transactions = 4;
+  // The runtime's TransactionError as JSON, e.g. {"InstructionError":[3,{"Custom":6040}]}.
+  string err = 5;
 }
 
-// Bundle dropped due to an internal error.
+// FLOWRA EXTENSION — one transaction's simulation result.
+message SimulatedTransaction {
+  // Position within the bundle.
+  uint32 index = 1;
+  string signature = 2;
+  // TransactionError as JSON; empty when the transaction succeeded.
+  string err = 3;
+  // Program log output — the `msg!` / anchor `require!` trail.
+  repeated string logs = 4;
+  uint64 units_consumed = 5;
+  // SPL token balances before/after this transaction, as JSON arrays of
+  // {accountIndex, mint, owner, uiTokenAmount{amount, decimals, ...}}.
+  string pre_token_balances = 6;
+  string post_token_balances = 7;
+  // Raw account state before/after, for the accounts the transaction write-locks, as a JSON
+  // array of {lamports, owner, data[base64,...], executable, rentEpoch}. This is what lets a
+  // searcher diff the pool reserves the trade actually moved against what its formula predicted.
+  string pre_execution_accounts = 8;
+  string post_execution_accounts = 9;
+}
+
 message InternalError {
   string msg = 1;
 }
 
-// Bundle dropped (e.g. because no leader upcoming)
 message DroppedBundle {
   string msg = 1;
 }
 
+// Bundle finalized on-chain.
 message Finalized {}
+
+// Bundle processed (landed) in a block.
 message Processed {
+  // Field numbers match Jito's, which the engine's copy had backwards. Nothing emits this
+  // message yet, so correcting it costs nothing; leaving it would have quietly broken the
+  // jito-ts compatibility the header above claims.
   string validator_identity = 1;
   uint64 slot = 2;
-  /// Index within the block.
   uint64 bundle_index = 3;
 }
+
 message Dropped {
   DroppedReason reason = 1;
+
+  // FLOWRA EXTENSION —
+  // The signature that caused the drop. For a superseded bundle this is the transaction an
+  // already-emitted bundle is carrying: the bundle is atomic and a signature spends once, so
+  // this one could no longer land. Reading it back tells a searcher that its bundle lost to
+  // an overlapping variant of its own — not to a program error.
+  string conflicting_signature = 2;
+  string msg = 3;
 }
+
 enum DroppedReason {
   BlockhashExpired = 0;
-  // One or more transactions in the bundle landed on-chain, invalidating the bundle.
   PartiallyProcessed = 1;
-  // This indicates bundle was processed but not finalized. This could occur during forks.
   NotFinalized = 2;
 }
 
 message BundleResult {
-  // Bundle's Uuid.
   string bundle_id = 1;
-
   oneof result {
-    // Indicated accepted by the block-engine and forwarded to a jito-solana validator.
     Accepted accepted = 2;
-    // Rejected by the block-engine.
     Rejected rejected = 3;
-    // Reached finalized commitment level.
     Finalized finalized = 4;
-    // Reached a processed commitment level.
     Processed processed = 5;
-    // Was accepted and forwarded by the block-engine but never landed on-chain.
     Dropped dropped = 6;
   }
 }
