@@ -33,7 +33,12 @@ message AccountsOfInterest {
 
 message AccountsOfInterestRequest {}
 message AccountsOfInterestUpdate {
+  // use * for all accounts
   repeated string accounts = 1;
+}
+
+message ProgramsOfInterest {
+  repeated string programs = 1;
 }
 
 message ProgramsOfInterestRequest {}
