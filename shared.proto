@@ -16,3 +16,57 @@ message Socket {
   string ip = 1;
   int64 port = 2;
 }
+
+// Flowra PBP (Permissionless Bundle Policy).
+//
+// The validator is the policy authority: it is the party accountable for what lands in the
+// block it produces, so it is the only party that gets to say what may be dropped on its
+// behalf. It pushes the same policy object to every component that acts for it — the block
+// engine and the relayer fronting its TPU — which is why this lives in `shared` rather than
+// in either service's own proto. Both sides report a digest of what they hold, so a
+// divergence between them is visible instead of silent.
+//
+// Nothing here is enforced by an operator-local config file. A relayer serves several
+// validators at once and drops on behalf of exactly one of them at a time, so a policy that
+// is not attributable to an authenticated validator identity has no one to answer for it.
+message PbpPolicy {
+  bool allow_aggressive_mev = 1;
+  repeated string searcher_whitelist = 2;
+  // Transactions referencing one of these accounts are dropped.
+  repeated string address_blacklist = 3;
+  // Programs whose transactions are dropped wholesale, matched on account references so that
+  // invoking the program through a router does not evade it. This is the blunt instrument:
+  // it is what blocks a malicious MEV program outright.
+  repeated string program_blacklist = 4;
+  // E1/E5: if non-empty, a bundle must reference one of these programs (deny > allow).
+  repeated string program_allowlist = 5;
+  // E4: searchers pinned to the top of the block.
+  repeated string force_priority_searchers = 6;
+  // E3: per-category CU quotas.
+  repeated CategoryQuota category_quotas = 7;
+  // Instruction-level rules, for when blocking a whole program is too broad: a specific
+  // instruction of an otherwise legitimate program. Only top-level instructions are visible
+  // on the wire, so a rule here cannot see a call made through CPI; use program_blacklist for
+  // that.
+  repeated InstructionRule instruction_blacklist = 8;
+}
+
+message CategoryQuota {
+  string name = 1;
+  uint32 pct = 2;                 // percent (0-100) of block CU budget
+  repeated string program_ids = 3;
+}
+
+message InstructionRule {
+  string program_id = 1;
+  // Hex byte prefixes of the instruction data, matched as a prefix. Typically the instruction
+  // discriminant. An empty list matches any instruction to the program.
+  repeated string data_prefixes = 2;
+}
+
+message ProvidePbpPolicyResponse {
+  bool accepted = 1;
+  // Digest of the policy as the receiver stored it. The sender compares this against what it
+  // sent, and against what the other receiver reports, to catch divergence.
+  string policy_digest = 2;
+}

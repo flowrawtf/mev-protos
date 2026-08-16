@@ -32,4 +32,14 @@ service Relayer {
   // Validators can subscribe to packets from the relayer and receive a multiplexed signal that contains a mixture
   // of packets and heartbeats
   rpc SubscribePackets (SubscribePacketsRequest) returns (stream SubscribePacketsResponse) {}
+
+  // Flowra: the validator pushes the policy the relayer must apply to that validator's own
+  // packet stream, and re-pushes it periodically. The relayer keys it by the authenticated
+  // identity on the connection, so one relayer fronting several validators drops for each of
+  // them by their own rules and never by another's.
+  //
+  // A policy that stops being refreshed expires: a stale rule set is worse than none, and the
+  // relayer has no standing to keep dropping on an authority that has gone quiet. Losing the
+  // connection does not drop traffic.
+  rpc ProvidePbpPolicy (shared.PbpPolicy) returns (shared.ProvidePbpPolicyResponse) {}
 }

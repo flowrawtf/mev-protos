@@ -87,30 +87,6 @@ message GetBlockEngineEndpointResponse {
 }
 
 
-// Flowra PBP (Permissionless Bundle Policy) pushed by the validator (policy authority) to the engine.
-message PbpPolicy {
-  bool allow_aggressive_mev = 1;
-  repeated string searcher_whitelist = 2;
-  repeated string address_blacklist = 3;
-  repeated string program_blacklist = 4;
-  // E1/E5: if non-empty, a bundle must reference one of these programs (deny > allow).
-  repeated string program_allowlist = 5;
-  // E4: searchers pinned to the top of the block.
-  repeated string force_priority_searchers = 6;
-  // E3: per-category CU quotas.
-  repeated CategoryQuota category_quotas = 7;
-}
-
-message CategoryQuota {
-  string name = 1;
-  uint32 pct = 2;                 // percent (0-100) of block CU budget
-  repeated string program_ids = 3;
-}
-
-message ProvidePbpPolicyResponse {
-  bool accepted = 1;
-}
-
 /// Validators can connect to Block Engines to receive packets and bundles.
 service BlockEngineValidator {
   /// Validators can subscribe to the block engine to receive a stream of packets
@@ -127,7 +103,7 @@ service BlockEngineValidator {
   rpc GetBlockEngineEndpoints (GetBlockEngineEndpointRequest) returns (GetBlockEngineEndpointResponse) {}
 
   // Flowra: the validator (PBP policy authority) pushes its Permissionless Bundle Policy to the engine.
-  rpc ProvidePbpPolicy (PbpPolicy) returns (ProvidePbpPolicyResponse) {}
+  rpc ProvidePbpPolicy (shared.PbpPolicy) returns (shared.ProvidePbpPolicyResponse) {}
 
   // Flowra: the validator hands the engine a short-lived access token for an UPSTREAM block
   // engine that the validator authenticated to itself.
