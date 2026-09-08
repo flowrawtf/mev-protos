@@ -19,6 +19,16 @@ message SendBundleRequest {
   // Nothing is spent and nothing can land, so a searcher can verify a pricing formula against
   // live on-chain state as often as it likes. Ignored by (and absent from) upstream Jito.
   bool simulate_only = 2;
+
+  // FLOWRA EXTENSION — advisory simulation. The bundle is still simulated (verdict, logs and
+  // pre/post account state are recorded and reported), but a failing simulation no longer
+  // drops it: it enters the auction regardless and the validator's bundle stage — which
+  // discards any reverting bundle atomically at block production — is the final arbiter.
+  // For searchers whose edge outruns a current-bank simulation (a backrun priced against a
+  // snapshot the pool has since moved past). Precheck refusals (signature already on chain,
+  // blockhash expired) are certain, not predictive, and still drop. Default false keeps the
+  // existing drop-on-failure behaviour. Ignored by (and absent from) upstream Jito.
+  bool skip_sim_drop = 3;
 }
 
 message SendBundleResponse {
@@ -53,6 +63,14 @@ message PendingTxNotification {
   google.protobuf.Timestamp expiration_time = 2;
   // list of pending transactions
   repeated packet.Packet transactions = 3;
+
+  // FLOWRA EXTENSION — when the engine FIRST observed each transaction's signature, one
+  // entry per element of `transactions` in the same order. Unlike `server_side_ts` (the
+  // moment this delivery was forwarded, re-stamped on every repeat), this is preserved
+  // across repeat deliveries of the same signature, so a searcher can compute how long a
+  // transaction has been pending and skip ones likely already landed. Absent on older
+  // engines; clients must tolerate an empty list. Ignored by upstream Jito.
+  repeated google.protobuf.Timestamp first_seen = 4;
 }
 
 message NextScheduledLeaderRequest {}
