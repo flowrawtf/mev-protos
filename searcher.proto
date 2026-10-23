@@ -14,20 +14,26 @@ message SlotList {
 message SendBundleRequest {
   bundle.Bundle bundle = 1;
 
-  // FLOWRA EXTENSION — dry run. The bundle is simulated against the leader's bank and the
-  // full report is returned inline, but it never enters the auction and is never broadcast.
-  // Nothing is spent and nothing can land, so a searcher can verify a pricing formula against
-  // live on-chain state as often as it likes. Ignored by (and absent from) upstream Jito.
+  // FLOWRA EXTENSION — dry run. The bundle is simulated and the full report is returned
+  // inline, but it never enters the auction and is never broadcast, so nothing is spent and
+  // nothing can land. Ignored by (and absent from) upstream Jito.
+  //
+  // - Bank: simulated on the block engine's RPC node, not the leader, at the commitment the
+  //   engine is configured for. That bank trails the leader by a slot or more, so recent
+  //   writes may be missing. If it lags too far, simulation is skipped (`simulation_skipped`).
+  // - Signatures are not verified and each recent blockhash is replaced with the bank's.
+  // - Counts against the key's submission rate limit (RESOURCE_EXHAUSTED when exceeded).
   bool simulate_only = 2;
 
   // FLOWRA EXTENSION — advisory simulation. The bundle is still simulated (verdict, logs and
   // pre/post account state are recorded and reported), but a failing simulation no longer
   // drops it: it enters the auction regardless and the validator's bundle stage — which
   // discards any reverting bundle atomically at block production — is the final arbiter.
-  // For searchers whose edge outruns a current-bank simulation (a backrun priced against a
-  // snapshot the pool has since moved past). Precheck refusals (signature already on chain,
-  // blockhash expired) are certain, not predictive, and still drop. Default false keeps the
-  // existing drop-on-failure behaviour. Ignored by (and absent from) upstream Jito.
+  // For searchers whose edge outruns the simulation bank (see `simulate_only`). A skipped
+  // simulation enters the auction with or without this flag. Precheck refusals (signature
+  // already on chain, blockhash expired or expiring before the leader's slot) are certain,
+  // not predictive, and still drop. Default false keeps the existing drop-on-failure
+  // behaviour. Ignored by (and absent from) upstream Jito.
   bool skip_sim_drop = 3;
 }
 
@@ -40,11 +46,12 @@ message SendBundleResponse {
   bool simulated_ok = 2;
   // Bundle-level failure reason, as JSON; empty when `simulated_ok`.
   string simulation_err = 3;
-  // Per-transaction detail in bundle order: logs, units consumed, token balances, and the
-  // pre/post state of every account the transaction write-locks.
+  // Per-transaction detail in bundle order, up to and including the first failing
+  // transaction: logs, units consumed, and the pre/post state of the accounts the
+  // transaction write-locks (see bundle.SimulatedTransaction).
   repeated bundle.SimulatedTransaction simulation = 4;
-  // Set when simulation could not be run at all (RPC unavailable) — the bundle was neither
-  // proven good nor proven bad.
+  // Set when there is no verdict: the RPC was unavailable, or its bank was too far behind the
+  // engine's tip. The bundle was neither proven good nor bad.
   bool simulation_skipped = 5;
 }
 
