@@ -53,6 +53,9 @@ message SendBundleResponse {
   // Set when there is no verdict: the RPC was unavailable, or its bank was too far behind the
   // engine's tip. The bundle was neither proven good nor bad.
   bool simulation_skipped = 5;
+  // Slot of the bank the simulation ran on (the engine's RPC node, not the leader), also when
+  // `simulation_skipped` because that bank lagged. 0 when unknown or not simulated.
+  uint64 simulation_slot = 6;
 }
 
 message SubscribeBundleResultsRequest {}

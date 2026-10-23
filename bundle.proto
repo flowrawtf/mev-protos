@@ -57,9 +57,10 @@ message StateAuctionBidRejected {
 // Pre-auction simulation said the bundle would revert.
 //
 // Jito's version stops at (tx_signature, msg), which tells a searcher *that* it failed but
-// not *why*. Flowra attaches the simulation report at fields 3-5: the failing transaction's
-// runtime error, and the logs and account state of the transactions before it. The validator
-// returns no logs or writes for the failing transaction itself (see SimulatedTransaction).
+// not *why*. Flowra attaches the simulation report from field 3 on: the failing
+// transaction's runtime error, and the logs and account state of the transactions before
+// it. The validator returns no logs or writes for the failing transaction itself (see
+// SimulatedTransaction).
 message SimulationFailure {
   // Signature of the offending transaction.
   string tx_signature = 1;
@@ -73,6 +74,9 @@ message SimulationFailure {
   repeated SimulatedTransaction transactions = 4;
   // The runtime's TransactionError as JSON, e.g. {"InstructionError":[3,{"Custom":6040}]}.
   string err = 5;
+  // Slot of the bank the simulation ran on (the engine's RPC node, not the leader). 0 when
+  // unknown.
+  uint64 simulation_slot = 6;
 }
 
 // FLOWRA EXTENSION — one transaction's simulation result.
