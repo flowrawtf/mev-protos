@@ -92,8 +92,9 @@ message SimulatedTransaction {
   repeated string logs = 4;
   // 0 for a failed transaction.
   uint64 units_consumed = 5;
-  // SPL token balances before/after this transaction. Always empty: the validator's
-  // simulateBundle does not return them.
+  // SPL token balances before/after this transaction, as JSON arrays of
+  // {accountIndex, mint, owner, programId, uiTokenAmount{amount, decimals, ...}}. Present
+  // for transactions that touch token accounts; empty otherwise.
   string pre_token_balances = 6;
   string post_token_balances = 7;
   // Raw account state before/after, for the accounts the transaction write-locks, as a JSON
